@@ -1,0 +1,9 @@
+# Reference repos: keep locally, do not push to your GitHub
+openf1/
+fastf1/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
