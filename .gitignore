@@ -2,8 +2,37 @@
 openf1/
 fastf1/
 
-# OS and editor
+# --- Frontend (Next.js) ---
+frontend/node_modules
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+frontend/coverage
+frontend/.next/
+frontend/out/
+frontend/build
+frontend/.vercel
+frontend/.env*
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# --- Backend (Python) ---
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+
+# --- OS and editor ---
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
+*.pem
