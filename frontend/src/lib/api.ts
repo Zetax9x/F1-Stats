@@ -16,6 +16,8 @@ export async function healthCheck(): Promise<{ status: string }> {
   return res.json();
 }
 
+// --- Types (OpenF1) ---
+
 export type Session = {
   session_key: number;
   meeting_key: number;
@@ -27,6 +29,68 @@ export type Session = {
   date_end: string;
   year: number;
 };
+
+export type Meeting = {
+  meeting_key: number;
+  meeting_name: string;
+  country_name: string;
+  circuit_short_name: string;
+  date_start: string;
+  date_end: string;
+  year: number;
+};
+
+export type SessionResult = {
+  session_key: number;
+  driver_number: number;
+  position: number;
+  gap_to_leader: number | string;
+  duration?: number;
+  number_of_laps?: number;
+  dnf?: boolean;
+  dns?: boolean;
+  dsq?: boolean;
+};
+
+export type Lap = {
+  session_key: number;
+  driver_number: number;
+  lap_number: number;
+  lap_duration?: number;
+  duration_sector_1?: number;
+  duration_sector_2?: number;
+  duration_sector_3?: number;
+  is_pit_out_lap?: boolean;
+};
+
+export type CarData = {
+  session_key: number;
+  driver_number: number;
+  date: string;
+  speed: number;
+  throttle: number;
+  brake: number;
+  rpm?: number;
+  n_gear?: number;
+  drs?: number;
+};
+
+export type TeamRadio = {
+  session_key: number;
+  driver_number: number;
+  date: string;
+  recording_url: string;
+};
+
+export type Driver = {
+  session_key: number;
+  driver_number: number;
+  full_name: string;
+  name_acronym: string;
+  team_name: string;
+};
+
+// --- Sessions ---
 
 export async function getSessions(params?: {
   year?: number;
@@ -44,6 +108,32 @@ export async function getSessions(params?: {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch sessions");
   return res.json();
+}
+
+// --- Helpers (OpenF1 proxy) ---
+
+export async function getMeetings(year: number): Promise<Meeting[]> {
+  return getOpenF1<Meeting[]>("meetings", { year });
+}
+
+export async function getTeamRadio(
+  session_key: number,
+  driver_number?: number
+): Promise<TeamRadio[]> {
+  const params: Record<string, number> = { session_key };
+  if (driver_number != null) params.driver_number = driver_number;
+  return getOpenF1<TeamRadio[]>("team_radio", params);
+}
+
+export async function getCarData(
+  session_key: number,
+  driver_number: number
+): Promise<CarData[]> {
+  return getOpenF1<CarData[]>("car_data", { session_key, driver_number });
+}
+
+export async function getDrivers(session_key: number): Promise<Driver[]> {
+  return getOpenF1<Driver[]>("drivers", { session_key });
 }
 
 /**
