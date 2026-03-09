@@ -22,7 +22,7 @@ export default function Home() {
 
   return (
     <div className="font-sans">
-      <h1 className="text-3xl font-bold tracking-tight">F1 Stats</h1>
+      <h1 className="text-3xl font-bold tracking-tight">F1 <span className="text-red-600">Stats</span></h1>
       <p className="mt-2 text-zinc-400">
         Statistiche, telemetrie, team radio e weekend di gara
       </p>

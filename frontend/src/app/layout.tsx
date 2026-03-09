@@ -34,19 +34,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-zinc-950 text-zinc-100 antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-[#050814] text-slate-100 antialiased`}
       >
-        <header className="border-b border-zinc-800 bg-zinc-900/50">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-            <Link href="/" className="text-xl font-bold tracking-tight">
-              F1 Stats
+        <header className="border-b-2 border-b-red-500 bg-white/95 shadow-[0_0_24px_rgba(0,0,0,0.40)]">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+            <Link href="/" className="flex items-center gap-2 text-xl font-semibold tracking-tight text-slate-900">
+              <span className="h-5 w-1.5 rounded-full bg-red-500" />
+              <span>
+                F1 <span className="text-red-600">Stats</span>
+              </span>
             </Link>
-            <nav className="flex gap-6">
+            <nav className="flex gap-4 text-xs font-semibold uppercase tracking-wide">
               {navLinks.map(({ href, label }) => (
                 <Link
                   key={href}
                   href={href}
-                  className="text-sm font-medium text-zinc-400 transition-colors hover:text-zinc-100"
+                  className="rounded-full px-3 py-1 text-slate-700 transition-colors hover:bg-red-600 hover:text-white"
                 >
                   {label}
                 </Link>
