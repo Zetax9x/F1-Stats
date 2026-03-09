@@ -1,12 +1,17 @@
 /**
- * API client for F1 Stats backend (Oracle Cloud).
- * Base URL is set via NEXT_PUBLIC_API_URL (e.g. https://your-app.online.oraclecloud.com).
+ * API client for F1 Stats.
+ * Uses Next.js API routes (/api/*) as proxy so that HTTPS (Vercel) can call
+ * the HTTP backend on Oracle Cloud without mixed-content blocking.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE =
+  typeof window !== "undefined"
+    ? "" // In browser: call same origin (/api/*), Next.js server proxies to backend
+    : process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export async function healthCheck(): Promise<{ status: string }> {
-  const res = await fetch(`${API_BASE}/health`);
+  const url = API_BASE ? `${API_BASE}/health` : "/api/health";
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Backend health check failed");
   return res.json();
 }
@@ -33,7 +38,9 @@ export async function getSessions(params?: {
   if (params?.country_name) searchParams.set("country_name", params.country_name);
   if (params?.session_name) searchParams.set("session_name", params.session_name);
   const qs = searchParams.toString();
-  const url = `${API_BASE}/api/sessions${qs ? `?${qs}` : ""}`;
+  const url = API_BASE
+    ? `${API_BASE}/api/sessions${qs ? `?${qs}` : ""}`
+    : `/api/sessions${qs ? `?${qs}` : ""}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch sessions");
   return res.json();
@@ -53,7 +60,9 @@ export async function getOpenF1<T>(
     }
   }
   const qs = searchParams.toString();
-  const url = `${API_BASE}/api/openf1/${path}${qs ? `?${qs}` : ""}`;
+  const url = API_BASE
+    ? `${API_BASE}/api/openf1/${path}${qs ? `?${qs}` : ""}`
+    : `/api/openf1/${path}${qs ? `?${qs}` : ""}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`OpenF1 proxy failed: ${path}`);
   return res.json();

@@ -39,11 +39,8 @@ export default function Home() {
           )}
           {backendOk === false && (
             <p className="mt-2 text-amber-400">
-              Backend not reachable. Is it running on{" "}
-              <code className="rounded bg-zinc-800 px-1">
-                {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
-              </code>
-              ?
+              Backend not reachable. Check that BACKEND_URL is set on Vercel (or
+              that the backend is running locally).
             </p>
           )}
         </section>

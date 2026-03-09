@@ -43,16 +43,11 @@ Frontend: **http://localhost:3000** – it will call the backend for sessions an
 
 1. Push `frontend/` to GitHub (or connect Vercel to the repo and set root to `frontend`).
 2. In Vercel project settings, add env var:
-   - `NEXT_PUBLIC_API_URL` = your Oracle Cloud backend URL (e.g. `https://your-app.online.oraclecloud.com`).
+   - **`BACKEND_URL`** = `http://92.4.172.23:8000` (il tuo IP Oracle, porta 8000).  
+   Il frontend chiama `/api/health` e `/api/sessions` (stessa origine); il server Vercel fa da proxy verso il backend HTTP, così il browser non blocca per mixed content (HTTPS → HTTP).
 
 ### Backend → Oracle Cloud
 
-1. Create a VM (e.g. Ubuntu) on Oracle Cloud Free Tier.
-2. Install Python 3.10+, copy `backend/` and run:
-   - `pip install -r requirements.txt`
-   - Set `CORS_ORIGINS` to your Vercel URL(s), e.g. `https://f1-stats.vercel.app`
-   - Run with `uvicorn main:app --host 0.0.0.0 --port 8000` (or use `PORT` from the environment).
-3. Open port 8000 in the VM firewall / security list.
-4. (Optional) Put a reverse proxy (nginx) in front and use HTTPS.
+Guida passo-passo: **[docs/ORACLE-CLOUD-SETUP.md](docs/ORACLE-CLOUD-SETUP.md)** (creazione VM, apertura porta 8000, installazione, systemd).
 
-After deploy, set `NEXT_PUBLIC_API_URL` in Vercel to the public URL of your backend so frontend and backend talk.
+In sintesi: crea una VM Ubuntu su Oracle Cloud Free Tier, apri la porta 8000 nella Security List, copia il `backend/` sulla VM, crea `.env` con `CORS_ORIGINS` (URL Vercel), avvia con `./scripts/start-backend.sh` o con il servizio systemd. Imposta poi `NEXT_PUBLIC_API_URL` su Vercel con l’IP pubblico della VM (es. `http://132.145.xxx.xxx:8000`).
