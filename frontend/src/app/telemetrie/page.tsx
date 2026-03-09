@@ -125,17 +125,24 @@ export default function TelemetriePage() {
   }, [selectedSession, driver1, driver2]);
 
   // Build chart data: merge by date (time), sample if too many points
+  type ChartRow = { time: string; speed1?: number; speed2?: number; throttle1?: number; throttle2?: number; brake1?: number; brake2?: number };
   const chartData = (() => {
     const maxPoints = 500;
-    const byTime = new Map<string, { time: string; speed1?: number; speed2?: number; throttle1?: number; throttle2?: number; brake1?: number; brake2?: number }>();
+    const byTime = new Map<string, ChartRow>();
     const add = (arr: CarData[], suffix: "1" | "2") => {
       const step = Math.max(1, Math.floor(arr.length / maxPoints));
       arr.filter((_, i) => i % step === 0).forEach((d) => {
         const key = d.date;
-        const existing = byTime.get(key) ?? { time: key };
-        existing[`speed${suffix}` as keyof typeof existing] = d.speed;
-        existing[`throttle${suffix}` as keyof typeof existing] = d.throttle;
-        existing[`brake${suffix}` as keyof typeof existing] = d.brake;
+        const existing: ChartRow = byTime.get(key) ?? { time: key };
+        if (suffix === "1") {
+          existing.speed1 = d.speed;
+          existing.throttle1 = d.throttle;
+          existing.brake1 = d.brake;
+        } else {
+          existing.speed2 = d.speed;
+          existing.throttle2 = d.throttle;
+          existing.brake2 = d.brake;
+        }
         byTime.set(key, existing);
       });
     };
