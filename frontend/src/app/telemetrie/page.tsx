@@ -25,8 +25,6 @@ import {
   type Fastf1TelemetryPoint,
 } from "@/lib/api";
 
-const YEARS = [2023, 2024, 2025];
-
 export default function TelemetriePage() {
   const [year, setYear] = useState<number>(2024);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -40,15 +38,11 @@ export default function TelemetriePage() {
   const [carData2, setCarData2] = useState<Fastf1TelemetryPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   useEffect(() => {
-    setError(null);
-    setLoading(true);
-    getFastf1Seasons()
-      .then(() => getFastf1Events(year))
-      .then((events) => setMeetings(events as Meeting[]))
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
     setSelectedMeeting(null);
     setSessions([]);
     setSelectedSession(null);
@@ -57,6 +51,49 @@ export default function TelemetriePage() {
     setDriver2(null);
     setCarData1([]);
     setCarData2([]);
+
+    const loadMeetings = async () => {
+      try {
+        setError(null);
+        setLoading(true);
+
+        let targetYear = year;
+        try {
+          const seasons = await getFastf1Seasons();
+          const available = seasons.map((s) => s.year).sort((a, b) => b - a);
+          if (!cancelled) {
+            setAvailableYears(available);
+          }
+          if (!available.includes(year) && available.length > 0) {
+            targetYear = available[0];
+            if (!cancelled) {
+              setYear(targetYear);
+            }
+          }
+        } catch {
+          // se il backend /seasons fallisce, usiamo semplicemente l'anno corrente
+        }
+
+        const events = await getFastf1Events(targetYear);
+        if (!cancelled) {
+          setMeetings(events as Meeting[]);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Errore");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadMeetings();
+
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
 
   useEffect(() => {
@@ -185,7 +222,7 @@ export default function TelemetriePage() {
       <section className="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
         <h2 className="text-lg font-semibold">Anno e meeting</h2>
         <div className="mt-2 flex gap-2">
-          {YEARS.map((y) => (
+          {(availableYears.length ? availableYears : [year]).map((y) => (
             <button
               key={y}
               onClick={() => setYear(y)}

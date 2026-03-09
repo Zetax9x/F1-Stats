@@ -13,8 +13,6 @@ import {
   type Lap,
 } from "@/lib/api";
 
-const YEARS_FALLBACK = [2023, 2024, 2025];
-
 export default function StoricoPage() {
   const [year, setYear] = useState<number>(2024);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -26,6 +24,7 @@ export default function StoricoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"results" | "laps">("results");
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +37,8 @@ export default function StoricoPage() {
         let targetYear = year;
         try {
           const seasons = await getFastf1Seasons();
-          const available = seasons.map((s) => s.year);
+          const available = seasons.map((s) => s.year).sort((a, b) => b - a);
+          setAvailableYears(available);
           if (!available.includes(year) && available.length > 0) {
             targetYear = available[0];
             setYear(targetYear);
@@ -161,7 +161,7 @@ export default function StoricoPage() {
       <section className="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
         <h2 className="text-lg font-semibold">Anno</h2>
         <div className="mt-2 flex gap-2">
-          {YEARS_FALLBACK.map((y) => (
+          {(availableYears.length ? availableYears : [year]).map((y) => (
             <button
               key={y}
               onClick={() => handleYearChange(y)}
@@ -183,8 +183,8 @@ export default function StoricoPage() {
         {error && <p className="mt-2 text-red-400">{error}</p>}
         {meetings.length > 0 && (
           <ul className="mt-2 space-y-1">
-            {meetings.map((m) => (
-              <li key={`${m.year}-${m.event_round}`}>
+            {meetings.map((m, index) => (
+              <li key={`${m.year ?? "y"}-${m.event_round ?? "r"}-${index}`}>
                 <button
                   type="button"
                   onClick={() => handleMeetingSelect(m)}

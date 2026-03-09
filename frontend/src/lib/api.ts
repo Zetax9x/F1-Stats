@@ -1,19 +1,5 @@
-/**
- * API client for F1 Stats.
- * Uses Next.js API routes (/api/*) as proxy so that HTTPS (Vercel) can call
- * the HTTP backend on Oracle Cloud without mixed-content blocking.
- *
- * This version is fully based on FastF1 (no OpenF1).
- */
-
-const API_BASE =
-  typeof window !== "undefined"
-    ? "" // In browser: call same origin (/api/*), Next.js server proxies to backend
-    : process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
 export async function healthCheck(): Promise<{ status: string }> {
-  const url = API_BASE ? `${API_BASE}/health` : "/api/health";
-  const res = await fetch(url);
+  const res = await fetch("/api/health");
   if (!res.ok) throw new Error("Backend health check failed");
   return res.json();
 }
@@ -107,24 +93,20 @@ export type Lap = Fastf1Lap;
 
 function apiUrl(path: string, searchParams?: URLSearchParams) {
   const qs = searchParams?.toString();
-  const base = API_BASE ?? "";
-  if (base) {
-    return `${base}${path}${qs ? `?${qs}` : ""}`;
-  }
   return `${path}${qs ? `?${qs}` : ""}`;
 }
 
 // --- Seasons / Events / Sessions ---
 
 export async function getFastf1Seasons(): Promise<Fastf1Season[]> {
-  const res = await fetch(apiUrl("/api/fastf1/seasons"));
+  const res = await fetch(apiUrl("/api/seasons"));
   if (!res.ok) throw new Error("Failed to fetch FastF1 seasons");
   return res.json();
 }
 
 export async function getFastf1Events(year: number): Promise<Fastf1Event[]> {
   const searchParams = new URLSearchParams({ year: String(year) });
-  const res = await fetch(apiUrl("/api/fastf1/events", searchParams));
+  const res = await fetch(apiUrl("/api/events", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 events");
   return res.json();
 }
@@ -135,9 +117,9 @@ export async function getFastf1Sessions(params: {
 }): Promise<Fastf1Session[]> {
   const searchParams = new URLSearchParams({
     year: String(params.year),
-    event_round: String(params.event_round),
+    round_number: String(params.event_round),
   });
-  const res = await fetch(apiUrl("/api/fastf1/sessions", searchParams));
+  const res = await fetch(apiUrl("/api/sessions", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 sessions");
   return res.json();
 }
@@ -151,10 +133,10 @@ export async function getFastf1SessionSummary(params: {
 }): Promise<Fastf1SessionResultRow[]> {
   const searchParams = new URLSearchParams({
     year: String(params.year),
-    event_round: String(params.event_round),
+    round_number: String(params.event_round),
     session_code: params.session_code,
   });
-  const res = await fetch(apiUrl("/api/fastf1/session-summary", searchParams));
+  const res = await fetch(apiUrl("/api/session-results", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 session summary");
   return res.json();
 }
@@ -166,10 +148,10 @@ export async function getFastf1Laps(params: {
 }): Promise<Fastf1Lap[]> {
   const searchParams = new URLSearchParams({
     year: String(params.year),
-    event_round: String(params.event_round),
+    round_number: String(params.event_round),
     session_code: params.session_code,
   });
-  const res = await fetch(apiUrl("/api/fastf1/laps", searchParams));
+  const res = await fetch(apiUrl("/api/session-laps", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 laps");
   return res.json();
 }
@@ -182,11 +164,12 @@ export async function getFastf1Telemetry(params: {
 }): Promise<Fastf1TelemetryPoint[]> {
   const searchParams = new URLSearchParams({
     year: String(params.year),
-    event_round: String(params.event_round),
+    round_number: String(params.event_round),
     session_code: params.session_code,
-    driver_number: String(params.driver_number),
+    driver: String(params.driver_number),
+    fastest: "true",
   });
-  const res = await fetch(apiUrl("/api/fastf1/telemetry", searchParams));
+  const res = await fetch(apiUrl("/api/session-telemetry", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 telemetry");
   return res.json();
 }
