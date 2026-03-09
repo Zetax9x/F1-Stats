@@ -2,6 +2,8 @@
  * API client for F1 Stats.
  * Uses Next.js API routes (/api/*) as proxy so that HTTPS (Vercel) can call
  * the HTTP backend on Oracle Cloud without mixed-content blocking.
+ *
+ * This version is fully based on FastF1 (no OpenF1).
  */
 
 const API_BASE =
@@ -16,90 +18,63 @@ export async function healthCheck(): Promise<{ status: string }> {
   return res.json();
 }
 
-// --- Types (OpenF1) ---
+// --- Types (FastF1) ---
 
-export type Session = {
-  session_key: number;
-  meeting_key: number;
-  session_name: string;
-  session_type: string;
-  country_name: string;
-  circuit_short_name: string;
-  date_start: string;
-  date_end: string;
+export type Fastf1Season = {
   year: number;
 };
 
-export type Meeting = {
-  meeting_key: number;
+export type Fastf1Event = {
+  year: number;
+  event_round: number;
   meeting_name: string;
   country_name: string;
   circuit_short_name: string;
   date_start: string;
-  date_end: string;
-  year: number;
 };
 
-export type SessionResult = {
-  session_key: number;
+export type Fastf1Session = {
+  year: number;
+  event_round: number;
+  session_code: string; // "R", "Q", "FP1", ...
+  session_name: string;
+  date_start: string;
+};
+
+export type Fastf1SessionResultRow = {
+  year: number;
+  event_round: number;
+  session_code: string;
   driver_number: number;
   position: number;
-  gap_to_leader: number | string;
-  duration?: number;
-  number_of_laps?: number;
-  dnf?: boolean;
-  dns?: boolean;
-  dsq?: boolean;
+  gap_to_leader: number | null;
+  number_of_laps: number;
+  driver_name: string;
+  driver_abbreviation: string;
+  team_name: string;
+  dnf: boolean;
+  dns: boolean;
+  dsq: boolean;
 };
 
-export type Lap = {
-  session_key: number;
+export type Fastf1Lap = {
+  year: number;
+  event_round: number;
+  session_code: string;
   driver_number: number;
   lap_number: number;
-  lap_duration?: number;
-  duration_sector_1?: number;
-  duration_sector_2?: number;
-  duration_sector_3?: number;
+  lap_duration?: number | null;
+  duration_sector_1?: number | null;
+  duration_sector_2?: number | null;
+  duration_sector_3?: number | null;
   is_pit_out_lap?: boolean;
 };
 
-export type CarData = {
-  session_key: number;
-  driver_number: number;
-  date: string;
+export type Fastf1TelemetryPoint = {
+  time_s: number;
   speed: number;
   throttle: number;
   brake: number;
-  rpm?: number;
-  n_gear?: number;
-  drs?: number;
-};
-
-export type TeamRadio = {
-  session_key: number;
-  driver_number: number;
-  date: string;
-  recording_url: string;
-};
-
-export type Driver = {
-  session_key: number;
-  driver_number: number;
-  full_name: string;
-  name_acronym: string;
-  team_name: string;
-  broadcast_name: string;
-  headshot_url: string;
-  team_colour: string;
-  last_name: string;
-};
-
-export type StartingGrid = {
-  session_key: number;
-  meeting_key: number;
-  driver_number: number;
-  position: number;      // posizione in griglia
-  lap_duration?: number; // giro di qualifica
 };
 
 export type Fastf1StartingGrid = {
@@ -122,101 +97,143 @@ export type Fastf1PitSummary = {
   pit_count: number;
 };
 
-// --- Sessions ---
+// Small aliases so we can reuse old names in pages with minimal churn.
+export type Session = Fastf1Session;
+export type Meeting = Fastf1Event;
+export type SessionResult = Fastf1SessionResultRow;
+export type Lap = Fastf1Lap;
 
-export async function getSessions(params?: {
-  year?: number;
-  country_name?: string;
-  session_name?: string;
-}): Promise<Session[]> {
-  const searchParams = new URLSearchParams();
-  if (params?.year != null) searchParams.set("year", String(params.year));
-  if (params?.country_name) searchParams.set("country_name", params.country_name);
-  if (params?.session_name) searchParams.set("session_name", params.session_name);
-  const qs = searchParams.toString();
-  const url = API_BASE
-    ? `${API_BASE}/api/sessions${qs ? `?${qs}` : ""}`
-    : `/api/sessions${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch sessions");
+// --- Helpers for building URLs ---
+
+function apiUrl(path: string, searchParams?: URLSearchParams) {
+  const qs = searchParams?.toString();
+  const base = API_BASE ?? "";
+  if (base) {
+    return `${base}${path}${qs ? `?${qs}` : ""}`;
+  }
+  return `${path}${qs ? `?${qs}` : ""}`;
+}
+
+// --- Seasons / Events / Sessions ---
+
+export async function getFastf1Seasons(): Promise<Fastf1Season[]> {
+  const res = await fetch(apiUrl("/api/fastf1/seasons"));
+  if (!res.ok) throw new Error("Failed to fetch FastF1 seasons");
   return res.json();
 }
 
-// --- Helpers (OpenF1 proxy) ---
-
-export async function getMeetings(year: number): Promise<Meeting[]> {
-  return getOpenF1<Meeting[]>("meetings", { year });
+export async function getFastf1Events(year: number): Promise<Fastf1Event[]> {
+  const searchParams = new URLSearchParams({ year: String(year) });
+  const res = await fetch(apiUrl("/api/fastf1/events", searchParams));
+  if (!res.ok) throw new Error("Failed to fetch FastF1 events");
+  return res.json();
 }
 
-export async function getTeamRadio(
-  session_key: number,
-  driver_number?: number
-): Promise<TeamRadio[]> {
-  const params: Record<string, number> = { session_key };
-  if (driver_number != null) params.driver_number = driver_number;
-  return getOpenF1<TeamRadio[]>("team_radio", params);
+export async function getFastf1Sessions(params: {
+  year: number;
+  event_round: number;
+}): Promise<Fastf1Session[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+  });
+  const res = await fetch(apiUrl("/api/fastf1/sessions", searchParams));
+  if (!res.ok) throw new Error("Failed to fetch FastF1 sessions");
+  return res.json();
 }
 
-export async function getStartingGrid(session_key: number): Promise<StartingGrid[]> {
-  return getOpenF1<StartingGrid[]>("starting_grid", { session_key });
+// --- Session summary / laps / telemetry ---
+
+export async function getFastf1SessionSummary(params: {
+  year: number;
+  event_round: number;
+  session_code: string;
+}): Promise<Fastf1SessionResultRow[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+    session_code: params.session_code,
+  });
+  const res = await fetch(apiUrl("/api/fastf1/session-summary", searchParams));
+  if (!res.ok) throw new Error("Failed to fetch FastF1 session summary");
+  return res.json();
 }
 
-export async function getStartingGridFastf1(session_key: number): Promise<Fastf1StartingGrid[]> {
-  const searchParams = new URLSearchParams({ session_key: String(session_key) });
-  const base = API_BASE ?? "";
-  const url = base ? `${base}/api/starting-grid-fastf1?${searchParams.toString()}` : `/api/starting-grid-fastf1?${searchParams.toString()}`;
-  const res = await fetch(url);
+export async function getFastf1Laps(params: {
+  year: number;
+  event_round: number;
+  session_code: string;
+}): Promise<Fastf1Lap[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+    session_code: params.session_code,
+  });
+  const res = await fetch(apiUrl("/api/fastf1/laps", searchParams));
+  if (!res.ok) throw new Error("Failed to fetch FastF1 laps");
+  return res.json();
+}
+
+export async function getFastf1Telemetry(params: {
+  year: number;
+  event_round: number;
+  session_code: string;
+  driver_number: number;
+}): Promise<Fastf1TelemetryPoint[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+    session_code: params.session_code,
+    driver_number: String(params.driver_number),
+  });
+  const res = await fetch(apiUrl("/api/fastf1/telemetry", searchParams));
+  if (!res.ok) throw new Error("Failed to fetch FastF1 telemetry");
+  return res.json();
+}
+
+// --- Grid / stints / pits ---
+
+export async function getStartingGridFastf1(params: {
+  year: number;
+  event_round: number;
+  session_code: string;
+}): Promise<Fastf1StartingGrid[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+    session_code: params.session_code,
+  });
+  const res = await fetch(apiUrl("/api/starting-grid-fastf1", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 starting grid");
   return res.json();
 }
 
-export async function getStintsFastf1(session_key: number): Promise<Fastf1Stint[]> {
-  const searchParams = new URLSearchParams({ session_key: String(session_key) });
-  const base = API_BASE ?? "";
-  const url = base ? `${base}/api/stints-fastf1?${searchParams.toString()}` : `/api/stints-fastf1?${searchParams.toString()}`;
-  const res = await fetch(url);
+export async function getStintsFastf1(params: {
+  year: number;
+  event_round: number;
+  session_code: string;
+}): Promise<Fastf1Stint[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+    session_code: params.session_code,
+  });
+  const res = await fetch(apiUrl("/api/stints-fastf1", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 stints");
   return res.json();
 }
 
-export async function getPitsFastf1(session_key: number): Promise<Fastf1PitSummary[]> {
-  const searchParams = new URLSearchParams({ session_key: String(session_key) });
-  const base = API_BASE ?? "";
-  const url = base ? `${base}/api/pits-fastf1?${searchParams.toString()}` : `/api/pits-fastf1?${searchParams.toString()}`;
-  const res = await fetch(url);
+export async function getPitsFastf1(params: {
+  year: number;
+  event_round: number;
+  session_code: string;
+}): Promise<Fastf1PitSummary[]> {
+  const searchParams = new URLSearchParams({
+    year: String(params.year),
+    event_round: String(params.event_round),
+    session_code: params.session_code,
+  });
+  const res = await fetch(apiUrl("/api/pits-fastf1", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 pit summary");
-  return res.json();
-}
-
-export async function getCarData(
-  session_key: number,
-  driver_number: number
-): Promise<CarData[]> {
-  return getOpenF1<CarData[]>("car_data", { session_key, driver_number });
-}
-
-export async function getDrivers(session_key: number): Promise<Driver[]> {
-  return getOpenF1<Driver[]>("drivers", { session_key });
-}
-
-/**
- * Generic OpenF1 proxy: e.g. getOpenF1("laps", { session_key: 9161, driver_number: 44 })
- */
-export async function getOpenF1<T>(
-  path: string,
-  params?: Record<string, string | number | boolean>
-): Promise<T> {
-  const searchParams = new URLSearchParams();
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      searchParams.set(k, String(v));
-    }
-  }
-  const qs = searchParams.toString();
-  const url = API_BASE
-    ? `${API_BASE}/api/openf1/${path}${qs ? `?${qs}` : ""}`
-    : `/api/openf1/${path}${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`OpenF1 proxy failed: ${path}`);
   return res.json();
 }

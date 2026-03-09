@@ -14,14 +14,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  getMeetings,
-  getOpenF1,
-  getCarData,
-  getDrivers,
+  getFastf1Seasons,
+  getFastf1Events,
+  getFastf1Sessions,
+  getFastf1SessionSummary,
+  getFastf1Telemetry,
   type Meeting,
   type Session,
-  type Driver,
-  type CarData,
+  type SessionResult,
+  type Fastf1TelemetryPoint,
 } from "@/lib/api";
 
 const YEARS = [2023, 2024, 2025];
@@ -32,19 +33,20 @@ export default function TelemetriePage() {
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<SessionResult[]>([]);
   const [driver1, setDriver1] = useState<number | null>(null);
   const [driver2, setDriver2] = useState<number | null>(null);
-  const [carData1, setCarData1] = useState<CarData[]>([]);
-  const [carData2, setCarData2] = useState<CarData[]>([]);
+  const [carData1, setCarData1] = useState<Fastf1TelemetryPoint[]>([]);
+  const [carData2, setCarData2] = useState<Fastf1TelemetryPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
     setLoading(true);
-    getMeetings(year)
-      .then(setMeetings)
+    getFastf1Seasons()
+      .then(() => getFastf1Events(year))
+      .then((events) => setMeetings(events as Meeting[]))
       .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
       .finally(() => setLoading(false));
     setSelectedMeeting(null);
@@ -65,9 +67,9 @@ export default function TelemetriePage() {
     }
     setError(null);
     setLoading(true);
-    getOpenF1<Session[]>("sessions", { meeting_key: selectedMeeting.meeting_key })
+    getFastf1Sessions({ year: selectedMeeting.year, event_round: selectedMeeting.event_round })
       .then((data) => {
-        setSessions(data);
+        setSessions(data as Session[]);
         setSelectedSession(null);
         setDrivers([]);
         setDriver1(null);
@@ -90,11 +92,15 @@ export default function TelemetriePage() {
     }
     setError(null);
     setLoading(true);
-    getDrivers(selectedSession.session_key)
-      .then((data) => {
-        setDrivers(data);
-        setDriver1(data[0]?.driver_number ?? null);
-        setDriver2(data[1]?.driver_number ?? null);
+    getFastf1SessionSummary({
+      year: selectedSession.year,
+      event_round: selectedSession.event_round,
+      session_code: selectedSession.session_code,
+    })
+      .then((rows) => {
+        setDrivers(rows);
+        setDriver1(rows[0]?.driver_number ?? null);
+        setDriver2(rows[1]?.driver_number ?? null);
         setCarData1([]);
         setCarData2([]);
       })
@@ -106,14 +112,28 @@ export default function TelemetriePage() {
     if (!selectedSession) return;
     setError(null);
     setLoading(true);
-    const promises: Promise<CarData[]>[] = [];
+    const promises: Promise<Fastf1TelemetryPoint[]>[] = [];
     if (driver1 != null) {
-      promises.push(getCarData(selectedSession.session_key, driver1));
+      promises.push(
+        getFastf1Telemetry({
+          year: selectedSession.year,
+          event_round: selectedSession.event_round,
+          session_code: selectedSession.session_code,
+          driver_number: driver1,
+        }),
+      );
     } else {
       promises.push(Promise.resolve([]));
     }
     if (driver2 != null) {
-      promises.push(getCarData(selectedSession.session_key, driver2));
+      promises.push(
+        getFastf1Telemetry({
+          year: selectedSession.year,
+          event_round: selectedSession.event_round,
+          session_code: selectedSession.session_code,
+          driver_number: driver2,
+        }),
+      );
     } else {
       promises.push(Promise.resolve([]));
     }
@@ -131,10 +151,10 @@ export default function TelemetriePage() {
   const chartData = (() => {
     const maxPoints = 500;
     const byTime = new Map<string, ChartRow>();
-    const add = (arr: CarData[], suffix: "1" | "2") => {
+    const add = (arr: Fastf1TelemetryPoint[], suffix: "1" | "2") => {
       const step = Math.max(1, Math.floor(arr.length / maxPoints));
       arr.filter((_, i) => i % step === 0).forEach((d) => {
-        const key = d.date;
+        const key = d.time_s.toFixed(3);
         const existing: ChartRow = byTime.get(key) ?? { time: key };
         if (suffix === "1") {
           existing.speed1 = d.speed;
@@ -153,7 +173,7 @@ export default function TelemetriePage() {
     return Array.from(byTime.values()).sort((a, b) => a.time.localeCompare(b.time));
   })();
 
-  const driverName = (n: number) => drivers.find((d) => d.driver_number === n)?.full_name ?? `#${n}`;
+  const driverName = (n: number) => drivers.find((d) => d.driver_number === n)?.driver_name ?? `#${n}`;
 
   return (
     <div>
@@ -180,15 +200,29 @@ export default function TelemetriePage() {
         {meetings.length > 0 && (
           <select
             className="mt-3 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
-            value={selectedMeeting?.meeting_key ?? ""}
-            onChange={(e) => setSelectedMeeting(meetings.find((m) => m.meeting_key === Number(e.target.value)) ?? null)}
+            value={
+              selectedMeeting
+                ? `${selectedMeeting.year}-${selectedMeeting.event_round}`
+                : ""
+            }
+            onChange={(e) =>
+              setSelectedMeeting(
+                meetings.find(
+                  (m) => `${m.year}-${m.event_round}` === e.target.value,
+                ) ?? null,
+              )
+            }
           >
             <option value="">Seleziona meeting</option>
-            {meetings.map((m) => (
-              <option key={m.meeting_key} value={m.meeting_key}>
-                {m.meeting_name} — {m.circuit_short_name}
-              </option>
-            ))}
+            {meetings.map((m, index) => {
+              const value = `${m.year}-${m.event_round}`;
+              const key = `${value}-${index}`;
+              return (
+                <option key={key} value={value}>
+                  {m.meeting_name} — {m.circuit_short_name}
+                </option>
+              );
+            })}
           </select>
         )}
       </section>
@@ -198,17 +232,30 @@ export default function TelemetriePage() {
           <h2 className="text-lg font-semibold">Sessione</h2>
           <select
             className="mt-2 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
-            value={selectedSession?.session_key ?? ""}
+            value={
+              selectedSession
+                ? `${selectedSession.year}-${selectedSession.event_round}-${selectedSession.session_code}`
+                : ""
+            }
             onChange={(e) =>
-              setSelectedSession(sessions.find((s) => s.session_key === Number(e.target.value)) ?? null)
+              setSelectedSession(
+                sessions.find(
+                  (s) =>
+                    `${s.year}-${s.event_round}-${s.session_code}` === e.target.value,
+                ) ?? null,
+              )
             }
           >
             <option value="">Seleziona sessione</option>
-            {sessions.map((s) => (
-              <option key={s.session_key} value={s.session_key}>
-                {s.session_name}
-              </option>
-            ))}
+            {sessions.map((s, index) => {
+              const key = `${s.year}-${s.event_round}-${s.session_code}-${index}`;
+              const value = `${s.year}-${s.event_round}-${s.session_code}`;
+              return (
+                <option key={key} value={value}>
+                  {s.session_name}
+                </option>
+              );
+            })}
           </select>
         </section>
       )}
@@ -227,7 +274,7 @@ export default function TelemetriePage() {
                 <option value="">—</option>
                 {drivers.map((d) => (
                   <option key={d.driver_number} value={d.driver_number}>
-                    {d.full_name} (#{d.driver_number})
+                    {d.driver_name} (#{d.driver_number})
                   </option>
                 ))}
               </select>
@@ -242,7 +289,7 @@ export default function TelemetriePage() {
                 <option value="">—</option>
                 {drivers.map((d) => (
                   <option key={d.driver_number} value={d.driver_number}>
-                    {d.full_name} (#{d.driver_number})
+                    {d.driver_name} (#{d.driver_number})
                   </option>
                 ))}
               </select>

@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  getMeetings,
-  getOpenF1,
+  getFastf1Seasons,
+  getFastf1Events,
+  getFastf1Sessions,
+  getFastf1SessionSummary,
+  getFastf1Laps,
   type Meeting,
   type Session,
   type SessionResult,
   type Lap,
 } from "@/lib/api";
 
-const YEARS = [2023, 2024, 2025];
+const YEARS_FALLBACK = [2023, 2024, 2025];
 
 export default function StoricoPage() {
   const [year, setYear] = useState<number>(2024);
@@ -27,19 +30,39 @@ export default function StoricoPage() {
   useEffect(() => {
     let cancelled = false;
 
-    getMeetings(year)
-      .then((data) => {
-        if (cancelled) return;
-        setMeetings(data);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Errore");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
+    const loadMeetings = async () => {
+      try {
+        setError(null);
+        setLoading(true);
+
+        let targetYear = year;
+        try {
+          const seasons = await getFastf1Seasons();
+          const available = seasons.map((s) => s.year);
+          if (!available.includes(year) && available.length > 0) {
+            targetYear = available[0];
+            setYear(targetYear);
+          }
+        } catch {
+          // fallback silenzioso: usiamo semplicemente year
+        }
+
+        const events = await getFastf1Events(targetYear);
+        if (!cancelled) {
+          setMeetings(events as Meeting[]);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Errore");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadMeetings();
 
     return () => {
       cancelled = true;
@@ -53,22 +76,31 @@ export default function StoricoPage() {
 
     let cancelled = false;
 
-    getOpenF1<Session[]>("sessions", { meeting_key: selectedMeeting.meeting_key })
-      .then((data) => {
+    const loadSessions = async () => {
+      try {
+        setError(null);
+        setLoading(true);
+        const data = await getFastf1Sessions({
+          year: selectedMeeting.year,
+          event_round: selectedMeeting.event_round,
+        });
         if (cancelled) return;
-        setSessions(data);
+        setSessions(data as Session[]);
         setSelectedSession(null);
         setResults([]);
         setLaps([]);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Errore");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Errore");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadSessions();
 
     return () => {
       cancelled = true;
@@ -100,8 +132,16 @@ export default function StoricoPage() {
     setError(null);
     setLoading(true);
     Promise.all([
-      getOpenF1<SessionResult[]>("session_result", { session_key: session.session_key }),
-      getOpenF1<Lap[]>("laps", { session_key: session.session_key }),
+      getFastf1SessionSummary({
+        year: session.year,
+        event_round: session.event_round,
+        session_code: session.session_code,
+      }),
+      getFastf1Laps({
+        year: session.year,
+        event_round: session.event_round,
+        session_code: session.session_code,
+      }),
     ])
       .then(([res, lapsData]) => {
         setResults(res);
@@ -121,7 +161,7 @@ export default function StoricoPage() {
       <section className="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
         <h2 className="text-lg font-semibold">Anno</h2>
         <div className="mt-2 flex gap-2">
-          {YEARS.map((y) => (
+          {YEARS_FALLBACK.map((y) => (
             <button
               key={y}
               onClick={() => handleYearChange(y)}
@@ -144,12 +184,14 @@ export default function StoricoPage() {
         {meetings.length > 0 && (
           <ul className="mt-2 space-y-1">
             {meetings.map((m) => (
-              <li key={m.meeting_key}>
+              <li key={`${m.year}-${m.event_round}`}>
                 <button
                   type="button"
                   onClick={() => handleMeetingSelect(m)}
                   className={`w-full rounded px-3 py-2 text-left text-sm transition-colors ${
-                    selectedMeeting?.meeting_key === m.meeting_key
+                    selectedMeeting &&
+                    selectedMeeting.year === m.year &&
+                    selectedMeeting.event_round === m.event_round
                       ? "bg-zinc-700"
                       : "hover:bg-zinc-800"
                   }`}
@@ -166,18 +208,21 @@ export default function StoricoPage() {
         <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
           <h2 className="text-lg font-semibold">Sessioni</h2>
           <ul className="mt-2 space-y-1">
-            {sessions.map((s) => (
-              <li key={s.session_key}>
+            {sessions.map((s, index) => (
+              <li key={`${s.year}-${s.event_round}-${s.session_code}-${index}`}>
                 <button
                   type="button"
                   onClick={() => loadSessionDetail(s)}
                   className={`w-full rounded px-3 py-2 text-left text-sm transition-colors ${
-                    selectedSession?.session_key === s.session_key
+                    selectedSession &&
+                    selectedSession.year === s.year &&
+                    selectedSession.event_round === s.event_round &&
+                    selectedSession.session_code === s.session_code
                       ? "bg-zinc-700"
                       : "hover:bg-zinc-800"
                   }`}
                 >
-                  {s.session_name} — {s.circuit_short_name}
+                  {s.session_name}
                 </button>
               </li>
             ))}

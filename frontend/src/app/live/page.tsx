@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  getMeetings,
-  getOpenF1,
-  getDrivers,
+  getFastf1Seasons,
+  getFastf1Events,
+  getFastf1Sessions,
+  getFastf1SessionSummary,
+  getFastf1Laps,
   getStartingGridFastf1,
   getStintsFastf1,
   getPitsFastf1,
@@ -12,7 +14,6 @@ import {
   type Session,
   type SessionResult,
   type Lap,
-  type Driver,
   type Fastf1StartingGrid,
   type Fastf1Stint,
   type Fastf1PitSummary,
@@ -23,7 +24,6 @@ export default function LivePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [results, setResults] = useState<SessionResult[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [laps, setLaps] = useState<Lap[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,34 +39,97 @@ export default function LivePage() {
         setError(null);
         setLoading(true);
 
-        const latestSessions = await getOpenF1<Session[]>("sessions", { session_key: "latest" });
-        const latest = latestSessions[0];
-
-        if (!latest) {
-          if (!cancelled) {
-            setError("Nessuna sessione live o recente trovata.");
-          }
+        // Prendiamo la stagione più recente esposta dal backend FastF1.
+        const seasons = await getFastf1Seasons();
+        const latestSeason = seasons[0];
+        if (!latestSeason) {
+          if (!cancelled) setError("Nessuna stagione FastF1 disponibile.");
           return;
         }
 
+        const events = await getFastf1Events(latestSeason.year);
+        const latestEvent = events[0];
+        if (!latestEvent) {
+          if (!cancelled) setError("Nessun evento disponibile per la stagione corrente.");
+          return;
+        }
+
+        const sessionsForEvent = await getFastf1Sessions({
+          year: latestEvent.year,
+          event_round: latestEvent.event_round,
+        });
+
         if (cancelled) return;
 
-        setSelectedSession(latest);
+        // Filtra solo le sessioni di oggi e in un range orario ragionevole
+        // (un po' prima e un po' dopo l'inizio sessione) per evitare polling
+        // quando non c'è nulla in corso.
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const WINDOW_BEFORE_MS = 2 * 60 * 60 * 1000; // 2h prima
+        const WINDOW_AFTER_MS = 4 * 60 * 60 * 1000; // 4h dopo
 
-        const [allMeetings, weekendSessions, initialResults, initialLaps] = await Promise.all([
-          getMeetings(latest.year),
-          getOpenF1<Session[]>("sessions", { meeting_key: latest.meeting_key }),
-          getOpenF1<SessionResult[]>("session_result", { session_key: latest.session_key }),
-          getOpenF1<Lap[]>("laps", { session_key: latest.session_key }),
+        const todaysSessions = sessionsForEvent.filter((s) => {
+          if (!s.date_start) return false;
+          const start = new Date(s.date_start);
+          if (start.toISOString().slice(0, 10) !== todayStr) return false;
+          const diff = now.getTime() - start.getTime();
+          return diff >= -WINDOW_BEFORE_MS && diff <= WINDOW_AFTER_MS;
+        });
+
+        setSelectedMeeting(latestEvent as Meeting);
+        setSessions(sessionsForEvent as Session[]);
+
+        if (todaysSessions.length === 0) {
+          // Non è un giorno/orario con sessioni in corso: niente chiamate live.
+          setSelectedSession(null);
+          setResults([]);
+          setLaps([]);
+          setStartingGrid([]);
+          setStints([]);
+          setPits([]);
+          setError("In questo momento non c'è nessuna sessione live (prove libere, qualifica o gara).");
+          return;
+        }
+
+        const latestSession = todaysSessions[todaysSessions.length - 1];
+        setSelectedSession(latestSession as Session);
+
+        const [initialResults, initialLaps, gridData, stintData, pitData] = await Promise.all([
+          getFastf1SessionSummary({
+            year: latestSession.year,
+            event_round: latestSession.event_round,
+            session_code: latestSession.session_code,
+          }),
+          getFastf1Laps({
+            year: latestSession.year,
+            event_round: latestSession.event_round,
+            session_code: latestSession.session_code,
+          }),
+          getStartingGridFastf1({
+            year: latestSession.year,
+            event_round: latestSession.event_round,
+            session_code: latestSession.session_code,
+          }),
+          getStintsFastf1({
+            year: latestSession.year,
+            event_round: latestSession.event_round,
+            session_code: latestSession.session_code,
+          }),
+          getPitsFastf1({
+            year: latestSession.year,
+            event_round: latestSession.event_round,
+            session_code: latestSession.session_code,
+          }),
         ]);
 
         if (cancelled) return;
 
-        const meeting = allMeetings.find((m) => m.meeting_key === latest.meeting_key) ?? null;
-        setSelectedMeeting(meeting);
-        setSessions(weekendSessions);
         setResults(initialResults);
         setLaps(initialLaps);
+        setStartingGrid(gridData);
+        setStints(stintData);
+        setPits(pitData);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Errore nel caricamento del live.");
@@ -92,13 +155,31 @@ export default function LivePage() {
     const fetchLatestResults = async () => {
       try {
         const [resultData, lapData, gridData, stintData, pitData] = await Promise.all([
-          getOpenF1<SessionResult[]>("session_result", {
-            session_key: selectedSession.session_key,
+          getFastf1SessionSummary({
+            year: selectedSession.year,
+            event_round: selectedSession.event_round,
+            session_code: selectedSession.session_code,
           }),
-          getOpenF1<Lap[]>("laps", { session_key: selectedSession.session_key }),
-          getStartingGridFastf1(selectedSession.session_key),
-          getStintsFastf1(selectedSession.session_key),
-          getPitsFastf1(selectedSession.session_key),
+          getFastf1Laps({
+            year: selectedSession.year,
+            event_round: selectedSession.event_round,
+            session_code: selectedSession.session_code,
+          }),
+          getStartingGridFastf1({
+            year: selectedSession.year,
+            event_round: selectedSession.event_round,
+            session_code: selectedSession.session_code,
+          }),
+          getStintsFastf1({
+            year: selectedSession.year,
+            event_round: selectedSession.event_round,
+            session_code: selectedSession.session_code,
+          }),
+          getPitsFastf1({
+            year: selectedSession.year,
+            event_round: selectedSession.event_round,
+            session_code: selectedSession.session_code,
+          }),
         ]);
         if (!cancelled) {
           setResults(resultData);
@@ -120,31 +201,6 @@ export default function LivePage() {
     return () => {
       cancelled = true;
       clearInterval(id);
-    };
-  }, [selectedSession]);
-  useEffect(() => {
-    if (!selectedSession) {
-      return;
-    }
-
-    let cancelled = false;
-
-    getDrivers(selectedSession.session_key)
-      .then((data) => {
-        if (cancelled) return;
-        setDrivers(data);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Errore");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
     };
   }, [selectedSession]);
   const loadSessionResults = useCallback((session: Session) => {
@@ -200,11 +256,6 @@ export default function LivePage() {
       .filter((v): v is number => v != null),
   );
 
-  const driverByNumber = new Map<number, Driver>();
-  for (const d of drivers) {
-    driverByNumber.set(d.driver_number, d);
-  }
-
   const formatSeconds = (value?: number) => {
     if (value == null) return "—";
     const totalMs = Math.round(value * 1000);
@@ -246,23 +297,26 @@ export default function LivePage() {
         )}
       </section>
 
-      {sessions.length > 0 && (
+      {sessions.length > 0 && selectedSession && (
         <section className="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
           <h2 className="text-lg font-semibold">Sessioni del weekend</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sessions.map((s) => (
+            {sessions.map((s, index) => (
               <button
-                key={s.session_key}
+                key={`${s.year}-${s.event_round}-${s.session_code}-${index}`}
                 type="button"
                 onClick={() => loadSessionResults(s)}
                 className={`rounded-lg border p-4 text-left transition-colors ${
-                  selectedSession?.session_key === s.session_key
+                  selectedSession &&
+                  selectedSession.year === s.year &&
+                  selectedSession.event_round === s.event_round &&
+                  selectedSession.session_code === s.session_code
                     ? "border-red-600 bg-zinc-800"
                     : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
                 }`}
               >
                 <div className="font-medium">{s.session_name}</div>
-                <div className="mt-1 text-sm text-zinc-400">{s.circuit_short_name}</div>
+                <div className="mt-1 text-sm text-zinc-400">{selectedMeeting?.circuit_short_name ?? ""}</div>
                 <div className="mt-1 text-xs text-zinc-500">
                   {s.date_start ? new Date(s.date_start).toLocaleString() : ""}
                 </div>
@@ -310,7 +364,6 @@ export default function LivePage() {
                       {(() => {
                         const startPos = gridByDriver.get(r.driver_number);
                         const delta = startPos ? startPos.grid_position - r.position : null;
-                        const driver = driverByNumber.get(r.driver_number);
                         const lap = latestLapByDriver.get(r.driver_number);
                         const driverStints = stintsByDriver.get(r.driver_number) ?? [];
                         let currentStint: Fastf1Stint | undefined;
@@ -325,7 +378,7 @@ export default function LivePage() {
                         const lapsOnTyre =
                           lap && currentStint ? lap.lap_number - currentStint.lap_start + 1 : null;
                         const pitCount = pitsByDriver.get(r.driver_number) ?? 0;
-                        const teamColor = driver?.team_colour ? `#${driver.team_colour}` : "#e5e7eb";
+                        const teamColor = "#e5e7eb";
                         return (
                           <>
                             <td className="py-2 px-3 text-center font-semibold">
@@ -340,13 +393,11 @@ export default function LivePage() {
                                   className="h-2 w-2 rounded-full"
                                   style={{ backgroundColor: teamColor ?? "#e5e7eb" }}
                                 />
-                                  <span>
-                                    {driver?.last_name ? driver.last_name.toUpperCase() : `#${r.driver_number}`}
-                                  </span>
+                                  <span>{r.driver_abbreviation.toUpperCase()}</span>
                               </span>
                             </td>
                             <td className="py-2 pr-4">{lap?.lap_number ?? "—"}</td>
-                            <td className="py-2 pr-4">{formatSeconds(lap?.lap_duration)}</td>
+                            <td className="py-2 pr-4">{formatSeconds(lap?.lap_duration ?? undefined)}</td>
                             <td className="py-2 pr-4">
                               {r.gap_to_leader == null
                                 ? "—"
@@ -356,14 +407,14 @@ export default function LivePage() {
                                     : `+${r.gap_to_leader}`
                                   : String(r.gap_to_leader)}
                             </td>
-                            <td className={`py-2 pr-2 ${sectorClass(lap?.duration_sector_1, bestSector1)}`}>
-                              {formatSeconds(lap?.duration_sector_1)}
+                            <td className={`py-2 pr-2 ${sectorClass(lap?.duration_sector_1 ?? undefined, bestSector1)}`}>
+                              {formatSeconds(lap?.duration_sector_1 ?? undefined)}
                             </td>
-                            <td className={`py-2 pr-2 ${sectorClass(lap?.duration_sector_2, bestSector2)}`}>
-                              {formatSeconds(lap?.duration_sector_2)}
+                            <td className={`py-2 pr-2 ${sectorClass(lap?.duration_sector_2 ?? undefined, bestSector2)}`}>
+                              {formatSeconds(lap?.duration_sector_2 ?? undefined)}
                             </td>
-                            <td className={`py-2 pr-2 ${sectorClass(lap?.duration_sector_3, bestSector3)}`}>
-                              {formatSeconds(lap?.duration_sector_3)}
+                            <td className={`py-2 pr-2 ${sectorClass(lap?.duration_sector_3 ?? undefined, bestSector3)}`}>
+                              {formatSeconds(lap?.duration_sector_3 ?? undefined)}
                             </td>
                             <td className="py-2 pr-2">
                               {delta == null ? "—" : delta === 0 ? "—" : delta > 0 ? `+${delta}` : delta}
