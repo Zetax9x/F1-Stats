@@ -23,59 +23,141 @@ export default function TeamRadioPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [filterDriver, setFilterDriver] = useState<number | null>(null);
   const [radios, setRadios] = useState<TeamRadioType[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setError(null);
-    setLoading(true);
+    let cancelled = false;
+
     getMeetings(year)
-      .then(setMeetings)
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
-    setSelectedMeeting(null);
-    setSessions([]);
-    setSelectedSession(null);
-    setRadios([]);
+      .then((data) => {
+        if (cancelled) return;
+        setMeetings(data);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Errore");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
 
   useEffect(() => {
     if (!selectedMeeting) {
-      setSessions([]);
-      setSelectedSession(null);
-      setRadios([]);
       return;
     }
-    setError(null);
-    setLoading(true);
+
+    let cancelled = false;
+
     getOpenF1<Session[]>("sessions", { meeting_key: selectedMeeting.meeting_key })
       .then((data) => {
+        if (cancelled) return;
         setSessions(data);
         setSelectedSession(null);
         setRadios([]);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
-  }, [selectedMeeting, year]);
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Errore");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMeeting]);
 
   useEffect(() => {
     if (!selectedSession) {
+      return;
+    }
+
+    let cancelled = false;
+
+    getDrivers(selectedSession.session_key)
+      .then((data) => {
+        if (cancelled) return;
+        setDrivers(data);
+        setFilterDriver(null);
+        setRadios([]);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Errore");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSession]);
+
+  const handleYearChange = (y: number) => {
+    setError(null);
+    setLoading(true);
+    setYear(y);
+    setMeetings([]);
+    setSelectedMeeting(null);
+    setSessions([]);
+    setSelectedSession(null);
+    setDrivers([]);
+    setFilterDriver(null);
+    setRadios([]);
+  };
+
+  const handleMeetingChange = (value: string) => {
+    if (!value) {
+      setSelectedMeeting(null);
+      setSessions([]);
+      setSelectedSession(null);
       setDrivers([]);
       setFilterDriver(null);
       setRadios([]);
       return;
     }
+
+    const meeting = meetings.find((m) => m.meeting_key === Number(value)) ?? null;
+
     setError(null);
     setLoading(true);
-    getDrivers(selectedSession.session_key)
-      .then((data) => {
-        setDrivers(data);
-        setFilterDriver(null);
-        setRadios([]);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
-  }, [selectedSession]);
+    setSelectedMeeting(meeting);
+    setSessions([]);
+    setSelectedSession(null);
+    setDrivers([]);
+    setFilterDriver(null);
+    setRadios([]);
+  };
+
+  const handleSessionChange = (value: string) => {
+    if (!value) {
+      setSelectedSession(null);
+      setDrivers([]);
+      setFilterDriver(null);
+      setRadios([]);
+      return;
+    }
+
+    const session = sessions.find((s) => s.session_key === Number(value)) ?? null;
+
+    setError(null);
+    setLoading(true);
+    setSelectedSession(session);
+    setDrivers([]);
+    setFilterDriver(null);
+    setRadios([]);
+  };
 
   const loadRadios = useCallback(() => {
     if (!selectedSession) return;
@@ -102,7 +184,7 @@ export default function TeamRadioPage() {
           {YEARS.map((y) => (
             <button
               key={y}
-              onClick={() => setYear(y)}
+              onClick={() => handleYearChange(y)}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
                 year === y ? "bg-zinc-700 text-zinc-100" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
               }`}
@@ -115,9 +197,7 @@ export default function TeamRadioPage() {
           <select
             className="mt-3 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
             value={selectedMeeting?.meeting_key ?? ""}
-            onChange={(e) =>
-              setSelectedMeeting(meetings.find((m) => m.meeting_key === Number(e.target.value)) ?? null)
-            }
+            onChange={(e) => handleMeetingChange(e.target.value)}
           >
             <option value="">Seleziona meeting</option>
             {meetings.map((m) => (
@@ -135,9 +215,7 @@ export default function TeamRadioPage() {
           <select
             className="mt-2 rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm"
             value={selectedSession?.session_key ?? ""}
-            onChange={(e) =>
-              setSelectedSession(sessions.find((s) => s.session_key === Number(e.target.value)) ?? null)
-            }
+            onChange={(e) => handleSessionChange(e.target.value)}
           >
             <option value="">Seleziona sessione</option>
             {sessions.map((s) => (

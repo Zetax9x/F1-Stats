@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 const dashboardLinks = [
   { href: "/storico", label: "Storico", description: "Anni, meeting, sessioni, risultati e giri" },
-  { href: "/weekend", label: "Weekend", description: "Weekend di gara attuale o selezionato" },
+  { href: "/live", label: "Live", description: "Live data del weekend attuale" },
   { href: "/telemetrie", label: "Telemetrie", description: "Speed, throttle, brake per sessione e pilota" },
   { href: "/team-radio", label: "Team Radio", description: "Audio pilota–team per sessione" },
 ];
@@ -17,7 +17,7 @@ const heroSlides = [
     title: "Race in 30",
     description: "Rivivi il weekend con risultati, telemetrie e team radio.",
     ctaLabel: "Apri weekend",
-    ctaHref: "/weekend",
+    ctaHref: "/live",
     imageUrl: "/hero1.jpeg",
   },
   {

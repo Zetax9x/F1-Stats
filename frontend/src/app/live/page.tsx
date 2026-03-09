@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   getMeetings,
   getOpenF1,
@@ -21,29 +21,29 @@ export default function WeekendPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const handleYearChange = (y: number) => {
+    if (y === year) return;
+    setYear(y);
     setError(null);
     setLoading(true);
-    getMeetings(year)
-      .then(setMeetings)
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
     setSelectedMeeting(null);
     setSessions([]);
     setSelectedSession(null);
     setResults([]);
-  }, [year]);
+    getMeetings(y)
+      .then(setMeetings)
+      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
+      .finally(() => setLoading(false));
+  };
 
-  useEffect(() => {
-    if (!selectedMeeting) {
-      setSessions([]);
-      setSelectedSession(null);
-      setResults([]);
-      return;
-    }
+  const handleSelectMeeting = (meeting: Meeting) => {
+    setSelectedMeeting(meeting);
     setError(null);
     setLoading(true);
-    getOpenF1<Session[]>("sessions", { meeting_key: selectedMeeting.meeting_key })
+    setSessions([]);
+    setSelectedSession(null);
+    setResults([]);
+    getOpenF1<Session[]>("sessions", { meeting_key: meeting.meeting_key })
       .then((data) => {
         setSessions(data);
         setSelectedSession(null);
@@ -51,7 +51,7 @@ export default function WeekendPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
       .finally(() => setLoading(false));
-  }, [selectedMeeting, year]);
+  };
 
   const loadSessionResults = useCallback((session: Session) => {
     setSelectedSession(session);
@@ -76,7 +76,7 @@ export default function WeekendPage() {
           {YEARS.map((y) => (
             <button
               key={y}
-              onClick={() => setYear(y)}
+              onClick={() => handleYearChange(y)}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
                 year === y
                   ? "bg-zinc-700 text-zinc-100"
@@ -99,7 +99,7 @@ export default function WeekendPage() {
               <li key={m.meeting_key}>
                 <button
                   type="button"
-                  onClick={() => setSelectedMeeting(m)}
+                  onClick={() => handleSelectMeeting(m)}
                   className={`w-full rounded px-3 py-2 text-left text-sm transition-colors ${
                     selectedMeeting?.meeting_key === m.meeting_key
                       ? "bg-zinc-700"

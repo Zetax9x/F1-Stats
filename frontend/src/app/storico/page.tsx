@@ -20,44 +20,80 @@ export default function StoricoPage() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [results, setResults] = useState<SessionResult[]>([]);
   const [laps, setLaps] = useState<Lap[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"results" | "laps">("results");
 
   useEffect(() => {
-    setError(null);
-    setLoading(true);
+    let cancelled = false;
+
     getMeetings(year)
-      .then(setMeetings)
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
-    setSelectedMeeting(null);
-    setSessions([]);
-    setSelectedSession(null);
-    setResults([]);
-    setLaps([]);
+      .then((data) => {
+        if (cancelled) return;
+        setMeetings(data);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Errore");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
 
   useEffect(() => {
     if (!selectedMeeting) {
-      setSessions([]);
-      setSelectedSession(null);
-      setResults([]);
-      setLaps([]);
       return;
     }
-    setError(null);
-    setLoading(true);
+
+    let cancelled = false;
+
     getOpenF1<Session[]>("sessions", { meeting_key: selectedMeeting.meeting_key })
       .then((data) => {
+        if (cancelled) return;
         setSessions(data);
         setSelectedSession(null);
         setResults([]);
         setLaps([]);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Errore"))
-      .finally(() => setLoading(false));
-  }, [selectedMeeting, year]);
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Errore");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMeeting]);
+
+  const handleYearChange = (y: number) => {
+    setError(null);
+    setLoading(true);
+    setYear(y);
+    setSelectedMeeting(null);
+    setSessions([]);
+    setSelectedSession(null);
+    setResults([]);
+    setLaps([]);
+  };
+
+  const handleMeetingSelect = (m: Meeting) => {
+    setError(null);
+    setLoading(true);
+    setSelectedMeeting(m);
+    setSelectedSession(null);
+    setResults([]);
+    setLaps([]);
+  };
 
   const loadSessionDetail = useCallback((session: Session) => {
     setSelectedSession(session);
@@ -88,7 +124,7 @@ export default function StoricoPage() {
           {YEARS.map((y) => (
             <button
               key={y}
-              onClick={() => setYear(y)}
+              onClick={() => handleYearChange(y)}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
                 year === y
                   ? "bg-zinc-700 text-zinc-100"
@@ -111,7 +147,7 @@ export default function StoricoPage() {
               <li key={m.meeting_key}>
                 <button
                   type="button"
-                  onClick={() => setSelectedMeeting(m)}
+                  onClick={() => handleMeetingSelect(m)}
                   className={`w-full rounded px-3 py-2 text-left text-sm transition-colors ${
                     selectedMeeting?.meeting_key === m.meeting_key
                       ? "bg-zinc-700"
