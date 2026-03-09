@@ -88,6 +88,38 @@ export type Driver = {
   full_name: string;
   name_acronym: string;
   team_name: string;
+  broadcast_name: string;
+  headshot_url: string;
+  team_colour: string;
+  last_name: string;
+};
+
+export type StartingGrid = {
+  session_key: number;
+  meeting_key: number;
+  driver_number: number;
+  position: number;      // posizione in griglia
+  lap_duration?: number; // giro di qualifica
+};
+
+export type Fastf1StartingGrid = {
+  driver_number: number;
+  grid_position: number;
+  finish_position: number;
+};
+
+export type Fastf1Stint = {
+  driver_number: number;
+  stint_number: number;
+  compound: string;
+  lap_start: number;
+  lap_end: number;
+  tyre_age_at_start?: number | null;
+};
+
+export type Fastf1PitSummary = {
+  driver_number: number;
+  pit_count: number;
 };
 
 // --- Sessions ---
@@ -123,6 +155,37 @@ export async function getTeamRadio(
   const params: Record<string, number> = { session_key };
   if (driver_number != null) params.driver_number = driver_number;
   return getOpenF1<TeamRadio[]>("team_radio", params);
+}
+
+export async function getStartingGrid(session_key: number): Promise<StartingGrid[]> {
+  return getOpenF1<StartingGrid[]>("starting_grid", { session_key });
+}
+
+export async function getStartingGridFastf1(session_key: number): Promise<Fastf1StartingGrid[]> {
+  const searchParams = new URLSearchParams({ session_key: String(session_key) });
+  const base = API_BASE ?? "";
+  const url = base ? `${base}/api/starting-grid-fastf1?${searchParams.toString()}` : `/api/starting-grid-fastf1?${searchParams.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch FastF1 starting grid");
+  return res.json();
+}
+
+export async function getStintsFastf1(session_key: number): Promise<Fastf1Stint[]> {
+  const searchParams = new URLSearchParams({ session_key: String(session_key) });
+  const base = API_BASE ?? "";
+  const url = base ? `${base}/api/stints-fastf1?${searchParams.toString()}` : `/api/stints-fastf1?${searchParams.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch FastF1 stints");
+  return res.json();
+}
+
+export async function getPitsFastf1(session_key: number): Promise<Fastf1PitSummary[]> {
+  const searchParams = new URLSearchParams({ session_key: String(session_key) });
+  const base = API_BASE ?? "";
+  const url = base ? `${base}/api/pits-fastf1?${searchParams.toString()}` : `/api/pits-fastf1?${searchParams.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch FastF1 pit summary");
+  return res.json();
 }
 
 export async function getCarData(
