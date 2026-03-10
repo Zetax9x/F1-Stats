@@ -19,6 +19,34 @@ export type Fastf1Event = {
   date_start: string;
 };
 
+type RawFastf1Event = {
+  event_round?: number;
+  round_number?: number;
+  RoundNumber?: number;
+  round?: number;
+  year?: number;
+  season?: number;
+  meeting_name?: string;
+  EventName?: string;
+  event_name?: string;
+  OfficialEventName?: string;
+  Name?: string;
+  name?: string;
+  country_name?: string;
+  Country?: string;
+  country?: string;
+  Location?: string;
+  location?: string;
+  circuit_short_name?: string;
+  CircuitShortName?: string;
+  date_start?: string;
+  EventDate?: string;
+  event_date?: string;
+  Session1Date?: string;
+  session1_date?: string;
+  date?: string;
+};
+
 export type Fastf1Session = {
   year: number;
   event_round: number;
@@ -33,14 +61,17 @@ export type Fastf1SessionResultRow = {
   session_code: string;
   driver_number: number;
   position: number;
-  gap_to_leader: number | null;
+  gap_to_leader: string;
   number_of_laps: number;
   driver_name: string;
   driver_abbreviation: string;
+  classified_position: number;
+  grid_position: number;
   team_name: string;
   dnf: boolean;
   dns: boolean;
   dsq: boolean;
+  status?: string;
 };
 
 export type Fastf1Lap = {
@@ -108,7 +139,69 @@ export async function getFastf1Events(year: number): Promise<Fastf1Event[]> {
   const searchParams = new URLSearchParams({ year: String(year) });
   const res = await fetch(apiUrl("/api/events", searchParams));
   if (!res.ok) throw new Error("Failed to fetch FastF1 events");
-  return res.json();
+  const payload = await res.json();
+  const rows: RawFastf1Event[] = Array.isArray(payload)
+    ? (payload as RawFastf1Event[])
+    : payload &&
+        typeof payload === "object" &&
+        "data" in payload &&
+        Array.isArray((payload as { data: unknown }).data)
+      ? ((payload as { data: RawFastf1Event[] }).data)
+      : [];
+
+  return rows.map((row, index) => {
+    let round: number | undefined =
+      row.event_round ??
+      row.round_number ??
+      row.RoundNumber ??
+      row.round;
+
+    // Evita round 0 o valori non numerici: fallback all'indice (1-based)
+    if (typeof round !== "number" || !Number.isFinite(round) || round < 1) {
+      round = index + 1;
+    }
+
+    const meeting: Fastf1Event = {
+      year:
+        typeof row.year === "number"
+          ? row.year
+          : typeof row.season === "number"
+          ? row.season
+          : year,
+      event_round: round,
+      meeting_name:
+        row.meeting_name ??
+        row.EventName ??
+        row.event_name ??
+        row.OfficialEventName ??
+        row.Name ??
+        row.name ??
+        `Round ${round}`,
+      country_name:
+        row.country_name ??
+        row.Country ??
+        row.country ??
+        row.Location ??
+        row.location ??
+        "",
+      circuit_short_name:
+        row.circuit_short_name ??
+        row.CircuitShortName ??
+        row.Location ??
+        row.location ??
+        "",
+      date_start:
+        row.date_start ??
+        row.EventDate ??
+        row.event_date ??
+        row.Session1Date ??
+        row.session1_date ??
+        row.date ??
+        "",
+    };
+
+    return meeting;
+  });
 }
 
 export async function getFastf1Sessions(params: {

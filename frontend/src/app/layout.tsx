@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Roboto_Mono, Titillium_Web, Orbitron } from "next/font/google";
 import "./globals.css";
 import { FooterStatus } from "./_components/footer-status";
 
@@ -12,6 +12,24 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const robotoMono = Roboto_Mono({
+  variable: "--font-roboto-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const titilliumWeb = Titillium_Web({
+  variable: "--font-titillium",
+  subsets: ["latin"],
+  weight: ["300", "400", "600", "700"],
+});
+
+const orbitron = Orbitron({
+  variable: "--font-orbitron",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -33,13 +51,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-[#050814] text-slate-100 antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${robotoMono.variable} ${titilliumWeb.variable} ${orbitron.variable} min-h-screen bg-[#050814] text-slate-100 antialiased font-titillium`}
+        suppressHydrationWarning
       >
         <header className="border-b-2 border-b-red-500 bg-white/95 shadow-[0_0_24px_rgba(0,0,0,0.40)]">
           <div className="flex w-full items-center justify-between px-6 py-3">
-            <Link href="/" className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-slate-900">
+            <Link href="/" className="font-formula flex items-center gap-2 text-3xl font-semibold uppercase tracking-tight text-slate-900">
               <span className="h-5 w-1.5 rounded-full bg-red-500" />
               <span>
                 F1 <span className="text-red-600">Stats</span>

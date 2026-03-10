@@ -1,15 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { healthCheck } from "@/lib/api";
 
 export function FooterStatus() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     healthCheck()
-      .then(() => setBackendOk(true))
-      .catch(() => setBackendOk(false));
+      .then(() => {
+        if (mountedRef.current) setBackendOk(true);
+      })
+      .catch(() => {
+        if (mountedRef.current) setBackendOk(false);
+      });
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   return (

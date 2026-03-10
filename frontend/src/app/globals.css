@@ -17,6 +17,18 @@
   --font-mono: var(--font-geist-mono);
 }
 
+.font-timing {
+  font-family: var(--font-roboto-mono), ui-monospace, monospace;
+}
+
+.font-titillium {
+  font-family: var(--font-titillium), "Titillium Web", system-ui, sans-serif;
+}
+
+.font-formula {
+  font-family: var(--font-orbitron), "Orbitron", system-ui, sans-serif;
+}
+
 body {
   background: radial-gradient(circle at top, #151933 0, #050814 45%, #02030a 100%);
   color: var(--foreground);
