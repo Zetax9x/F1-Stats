@@ -68,6 +68,7 @@ export type Fastf1SessionResultRow = {
   classified_position: number;
   grid_position: number;
   team_name: string;
+  points: number;
   dnf: boolean;
   dns: boolean;
   dsq: boolean;

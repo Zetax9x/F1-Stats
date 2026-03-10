@@ -15,9 +15,9 @@ import {
 
 function isMeetingDatePastOrToday(dateStart?: string | null): boolean {
   if (!dateStart || typeof dateStart !== "string") return false;
+  const today = new Date();
   const dateStr = dateStart.slice(0, 10); // YYYY-MM-DD
   const meetingDate = new Date(dateStr);
-  const today = new Date();
   today.setHours(0, 0, 0, 0);
   meetingDate.setHours(0, 0, 0, 0);
   return meetingDate.getTime() <= today.getTime();
@@ -37,7 +37,7 @@ function formatRaceTimeFromSeconds(totalSeconds?: number | null): string {
 }
 
 export default function StoricoPage() {
-  const [year, setYear] = useState<number>(2024);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [selectedMeetingIndex, setSelectedMeetingIndex] = useState<number | null>(null);
@@ -334,6 +334,7 @@ export default function StoricoPage() {
                 <thead className="font-timing border-b border-[#333333] bg-[#222222] text-[10px] font-semibold uppercase tracking-[0.22em] text-[#bbbbbb]">
                   <tr>
                     <th className="border-r border-[#333333] px-3 py-2 text-left w-24">Position</th>
+                    <th className="border-r border-[#333333] px-3 py-2 text-left w-12">Points</th>
                     <th className="border-r border-[#333333] px-3 py-2 text-left w-40">Lap time</th>
                     <th className="border-r border-[#333333] px-3 py-2 text-right w-24">Gap</th>
                     <th className="border-r border-[#333333] px-3 py-2 text-right w-24">Interval</th>
@@ -437,6 +438,9 @@ export default function StoricoPage() {
                                 ? `↓${Math.abs(r.grid_position - r.position)}`
                                 : "—"}
                           </span>
+                        </td>
+                        <td className="border-r border-[#333333] px-3 py-1 text-left tabular-nums">
+                          {r.points}
                         </td>
                         <td
                           className="border-r border-[#333333] py-1 pl-2 pr-3 text-left text-[11px] font-medium uppercase tracking-wider text-[#e0e0e0]"
